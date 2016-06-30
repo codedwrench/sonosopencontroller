@@ -1,6 +1,6 @@
 # sonosopencontroller
 An open source sonos controller written in python.
-Relies on PySide and the [soco](https://github.com/SoCo/SoCo) library
+Relies on PySide and the [soco](https://github.com/SoCo/SoCo) library.
 Work in Progress.
 I am making this application to be able to use my Sonos Play 1 on linux.
 I'm trying to make this controller as complete as possible, so hopefully we will have a good controller for linux instead of having to rely on our phones and tablets to control our devices.
