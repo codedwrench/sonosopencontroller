@@ -10,7 +10,7 @@ class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
     class NotASonosSelected(Exception):
         """Raise when no Sonos devices were selected"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent):
         super(MainDialog, self).__init__(parent)
         self.setupUi(self)
         self.rescanButton.clicked.connect(self.rescan)
@@ -57,9 +57,3 @@ class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
             # This should actually never happen, QListWidget should always at least have something selected
             QMessageBox.warning(self, "No selection made", "No Sonos device selected!")
             return
-
-
-app = QApplication(sys.argv)
-form = MainDialog()
-form.show()
-app.exec_()
