@@ -9,6 +9,8 @@ from dialogsandwindows import connectDialog
 class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
     class NotASonosSelected(Exception):
         """Raise when no Sonos devices were selected"""
+    class NoSonosesFound(Exception):
+        """Raise when no sonos devices are found"""
 
     def __init__(self, parent):
         super(MainDialog, self).__init__(parent)
@@ -20,7 +22,11 @@ class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
 
     def rescan(self):
         try:
-            setofinstances = list(soco.discovery.discover())
+            setofinstances = soco.discovery.discover()
+            if setofinstances is None:
+                raise self.NoSonosesFound
+            else:
+                setofinstances = list(setofinstances)
             self.connectList.clear()
             for sonos in setofinstances:
                 listwitem = QListWidgetItem(sonos.ip_address + " [" + sonos.player_name + "]", self.connectList,
@@ -33,6 +39,8 @@ class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
         except OSError:
             # I noticed that the program died when there was no internet connection, this allows the program to continue
             QMessageBox.critical(self, "No internet connection", "Network unreachable!")
+        except self.NoSonosesFound:
+            QMessageBox.warning(self, "No Sonos devices found", "No Sonos devices found.\nMake sure your Sonos is connected to the same network!")
 
     def connect(self):
         # For now you can only select one sonos device, i don't have multiple sonos devices to test with :/
