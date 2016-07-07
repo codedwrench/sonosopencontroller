@@ -55,6 +55,14 @@ class MainWindow(QMainWindow, showMainWindow.Ui_Sonos_Controller):
             elif playing == 'PAUSED_PLAYBACK':
                 self.setPlaying(False)
             self.duration = event['current_track_duration']
+            if self.prevtrackinfo is not event['current_track_meta_data'].stream_content \
+                    and event['current_track_meta_data'].stream_content is not '':
+                self.prevtrackinfo = event['current_track_meta_data'].stream_content
+                self.nowPlayingLabel.setText(event['current_track_meta_data'].stream_content)
+            elif self.prevtrackinfo is not event['current_track_meta_data'].title and event['current_track_meta_data'].title is not '' and event['current_track_meta_data'].stream_content is '':
+                self.prevtrackinfo = event['current_track_meta_data'].title
+                self.nowPlayingLabel.setText(event['current_track_meta_data'].title)
+
         if event2 is not None:
             self.volumeBar.blockSignals(True)
             self.volumeBar.setValue(int(event2['volume']['Master']))

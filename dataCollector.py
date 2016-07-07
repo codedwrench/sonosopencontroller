@@ -42,7 +42,7 @@ class getEvents(QThread):
                         print("event")
                         variablesone = self.event.variables
                         print("meta")
-                        print(self.event.variables['enqueued_transport_uri_meta_data'].to_dict())
+                        print(self.event.variables['current_track_meta_data'].to_dict())
                         pprint(self.event.variables)
                     if self.event2 is not None:
                         print("event2")
