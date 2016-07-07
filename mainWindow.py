@@ -1,4 +1,6 @@
+#!/usr/bin/python
 import sys
+
 
 import soco
 from PySide.QtGui import *
@@ -6,6 +8,9 @@ from PySide.QtCore import *
 from dialogsandwindows import showMainWindow
 import connectWidget
 import urllib
+import dataCollector
+import time
+
 
 class MainWindow(QMainWindow, showMainWindow.Ui_Sonos_Controller):
 
@@ -14,7 +19,6 @@ class MainWindow(QMainWindow, showMainWindow.Ui_Sonos_Controller):
 
     def __init__(self, parent=None):
         super(MainWindow, self).__init__(parent)
-        timer = QTimer(self)
         self.setupUi(self)
         dialog = connectWidget.MainDialog(self)
         if dialog.exec_():
@@ -22,91 +26,98 @@ class MainWindow(QMainWindow, showMainWindow.Ui_Sonos_Controller):
             self.volumeBar.setValue(self.sonos.volume)
         else:
             raise self.DialogDidNotOpen("connect dialog did not open")
-        self.playPauseButton.clicked.connect(self.playpause)
-        self.playing = self.sonos.get_current_transport_info()['current_transport_state'] == 'PLAYING'
-        if self.playing:
-            icon = QIcon()
-            icon.addPixmap(QPixmap(":/icons/pause.png"), QIcon.Normal, QIcon.Off)
-            self.playPauseButton.setIcon(icon)
-            self.playPauseButton.setIconSize(QSize(32, 32))
-        self.volumeBar.valueChanged.connect(self.setVolume)
+        self.eventGetter = dataCollector.getEvents(self.sonos)
         self.albumUpdaterThread = None
         self.prevtrackinfo = None
         self.updateanyway = True
-        timer.timeout.connect(self.updateValues)
-        timer.start(1000)
+        self.duration = None
+        self.volumeBar.valueChanged.connect(self.setVolume)
+        self.volumeBar.setTracking(False)
+        self.trackSlider.valueChanged.connect(self.seek)
+        self.trackSlider.setTracking(False)
+        self.playPauseButton.toggled.connect(self.playpause)
+        self.eventGetter.updateValues.connect(self.updateValues, Qt.DirectConnection)
+        self.eventGetter.start()
+        self.position = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.updatetimer)
+        self.playing = self.sonos.get_current_transport_info()['current_transport_state'] == 'PLAYING'
+        if self.playing:
+            self.setPlaying(True)
+        else:
+            self.setPlaying(False)
+
+    def updateValues(self, event, event2):
+        if event is not None:
+            playing = event['transport_state']
+            if playing == 'PLAYING':
+                self.setPlaying(True)
+            elif playing == 'PAUSED_PLAYBACK':
+                self.setPlaying(False)
+            self.duration = event['current_track_duration']
+        if event2 is not None:
+            self.volumeBar.blockSignals(True)
+            self.volumeBar.setValue(int(event2['volume']['Master']))
+            self.volumeBar.blockSignals(False)
+
+    def updatetimer(self):
+        self.position += 1
+        self.timeInSongLabel.setText(str(self.position))
 
     def playpause(self):
-        try:
-            if self.sonos.get_current_transport_info()['current_transport_state'] == 'PLAYING':
-               self.sonos.pause()
-               self.playing = False
-               icon = QIcon()
-               icon.addPixmap(QPixmap(":/icons/play.png"), QIcon.Normal, QIcon.Off)
-               self.playPauseButton.setIcon(icon)
-               self.playPauseButton.setIconSize(QSize(32, 32))
-            else:
-                self.sonos.play()
-                self.playing = True
-                icon = QIcon()
-                icon.addPixmap(QPixmap(":/icons/pause.png"), QIcon.Normal, QIcon.Off)
-                self.playPauseButton.setIcon(icon)
-                self.playPauseButton.setIconSize(QSize(32, 32))
-            self.updateValues()
-        except soco.SoCoException:
-            QMessageBox.warning(self, "connection lost", "connection to sonos device lost")
+        self.eventGetter.pausethread = True
+        if self.playing:
+            self.sonos.pause()
+            self.setPlaying(False)
+            self.playing = False
+        else:
+            self.sonos.play()
+            self.setPlaying(True)
+            self.playing = True
+        self.eventGetter.pausethread = False
+
+    def setPlaying(self, playing):
+        if playing is False:
+            self.playPauseButton.blockSignals(True)
+            self.playing = False
+            self.playPauseButton.setChecked(False)
+            self.playPauseButton.blockSignals(False)
+            self.timer.stop()
+        else:
+            self.playPauseButton.blockSignals(True)
+            self.playing = True
+            self.playPauseButton.setChecked(True)
+            self.playPauseButton.blockSignals(False)
+            self.timer.start(1000)
+        pos = self.sonos.get_current_track_info()['position']
+        self.position = self.converttoseconds(pos)
 
     def setVolume(self):
         self.sonos.volume = self.volumeBar.sliderPosition()
 
-    def getPercentageofTimeString(self, position, total):
-        """converts the position and total to seconds and divides that, after that it does it times 100"""
-
+    def converttoseconds(self, timestring):
         ftr = [3600, 60, 1]
-        percent = (sum([a * b for a, b in zip(ftr, map(int, position.split(':')))]) /
-                   sum([a * b for a, b in zip(ftr, map(int, total.split(':')))])) * 100
-        return percent
+        seconds = sum([a * b for a, b in zip(ftr, map(int, timestring.split(':')))])
+        return seconds
 
-    def updateValues(self):
-        playing = self.sonos.get_current_transport_info()['current_transport_state'] == 'PLAYING'
-        if playing != self.playing:
-            self.playing = playing
-            icon = QIcon()
-            if playing:
-                icon.addPixmap(QPixmap(":/icons/pause.png"), QIcon.Normal, QIcon.Off)
-            else:
-                icon.addPixmap(QPixmap(":/icons/play.png"), QIcon.Normal, QIcon.Off)
-            self.playPauseButton.setIcon(icon)
 
-        curtrackinfo = self.sonos.get_current_track_info()
-        if curtrackinfo['title'] != self.prevtrackinfo or self.updateanyway:
-            if curtrackinfo['album_art'] != '':
-                if self.albumUpdaterThread is None:
-                    self.albumUpdaterThread = albumUpdaterThread(curtrackinfo['album_art'])
-                    self.albumUpdaterThread.threadDone.connect(self.updateAlbum)
-                    self.albumUpdaterThread.start()
-            else:
-                self.albumArt.setPixmap(QPixmap(":/icons/album.png"))
+    def converttotime(self, percentage, duration):
+        ftr = [3600, 60, 1]
+        seconds = ((sum([a * b for a, b in zip(ftr, map(int, duration.split(':')))]) /
+                   100) * percentage)
+        hours, minutes = divmod(seconds, 3600)
+        minutes, seconds = divmod(minutes, 60)
+        return "%02d:%02d:%02d" % (hours, minutes, seconds)
 
-            self.nowPlayingLabel.setText(curtrackinfo['artist'] + " : " + curtrackinfo['title'])
-            self.prevtrackinfo = curtrackinfo['title']
-        if self.playing or self.updateanyway:
-            if curtrackinfo['duration'] != '0:00:00':
-                self.trackSlider.setDisabled(False)
-                self.trackSlider.setValue(self.getPercentageofTimeString(curtrackinfo['position'], curtrackinfo['duration']))
-                self.timeInSongLabel.setText(curtrackinfo['position'] + "/" + curtrackinfo['duration'])
-            else:
-                self.trackSlider.setDisabled(True)
-                self.trackSlider.setValue(0)
-                self.timeInSongLabel.setText(str(curtrackinfo['position']))
-            self.updateanyway = False
+    def seek(self):
+        timestring = self.converttotime(self.trackSlider.value(), self.duration)
+        self.sonos.seek(timestring)
 
-    def updateAlbum(self, album):
-        img = QPixmap()
-        img.loadFromData(album)
-        self.albumArt.setPixmap(img)
-        self.albumUpdaterThread = None
-
+    def exitHandler(self):
+        self.eventGetter.abortThread = True
+        if not self.eventGetter.wait(5000):
+            self.eventGetter.terminate()
+            self.eventGetter.wait()
 
 class albumUpdaterThread(QThread):
         threadDone = Signal(bytes)
@@ -120,7 +131,9 @@ class albumUpdaterThread(QThread):
             self.threadDone.emit(album)
 
 
+
 app = QApplication(sys.argv)
 form = MainWindow()
+app.aboutToQuit.connect(form.exitHandler)
 form.show()
 app.exec_()

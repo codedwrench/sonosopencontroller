@@ -18,7 +18,7 @@ class MainDialog(QDialog, connectDialog.Ui_sonosConnect):
         self.rescanButton.clicked.connect(self.rescan)
         self.connectButton.clicked.connect(self.connect)
         self.rescan()
-        self.sonostoworkwith = None
+        # self.sonostoworkwith = soco.SoCo("192.168.1.80") # for testing with a proxy
 
     def rescan(self):
         try:

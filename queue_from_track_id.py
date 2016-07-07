@@ -7,7 +7,7 @@ from soco.music_services import MusicService
 from soco.compat import quote_url
 
 
-device = SoCo("192.168.1.233")  # <------- Your IP here
+device = SoCo("192.168.1.80")  # <------- Your IP here
 service = MusicService("Deezer")  # <------ Your Music Service here
 track_id = service.get_metadata(item_id='radio-37635')['mediaMetadata']['id']
 
