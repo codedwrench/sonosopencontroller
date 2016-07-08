@@ -49,13 +49,16 @@ class MainWindow(QMainWindow, showMainWindow.Ui_Sonos_Controller):
 
     def updateValues(self, event, event2):
         if event is not None:
+            self.duration = event['current_track_duration']
             playing = event['transport_state']
             if playing == 'PLAYING':
                 self.setPlaying(True)
             elif playing == 'PAUSED_PLAYBACK':
                 self.setPlaying(False)
+                if self.updateanyway:
+                    self.updatetimer()
+                    self.updateanyway = False
                 
-            self.duration = event['current_track_duration']
             if self.prevtrackinfo is not event['current_track_meta_data'].stream_content \
                     and event['current_track_meta_data'].stream_content is not '':
                 self.prevtrackinfo = event['current_track_meta_data'].stream_content
